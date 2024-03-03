@@ -1,0 +1,17 @@
+{
+  "name": "antaboga",
+  "version": "1.0.0",
+  "description": "Puppeteer for convert page to anything",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "blackbuble",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "puppeteer": "^22.3.0"
+  }
+}
