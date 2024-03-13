@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const { fetch } = require('aws4fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,12 +14,15 @@ app.use(cors());
 app.post('/html2jpg', async(req, res) => {
     const { url,savePath, filename } = req.body;
 
-    if(!url || !savePath || !filename){
+    if(!url || !filename){
         return res.status(400).json({ error: 'All parameter is required '});
     }
 
     try{
-        const browser = await puppeteer.launch();
+        const browser = await puppeteer.launch({ 
+		   headless: true,
+		   args: ['--no-sandbox'] 
+		});
         const page = await browser.newPage();
 
         // Set custom viewport size to cover the entire page
@@ -27,21 +31,42 @@ app.post('/html2jpg', async(req, res) => {
         //await page.setViewport({ width: 375, height: 812, isMobile: true, hasTouch: true });
 
         await page.goto(url, { waitUntil: 'networkidle0' });
+        
+		const savePath = './'; // Save to root directory
+        const imagePath = path.join(savePath, filename);
+        await page.screenshot({ path: imagePath, type: 'jpeg', fullPage: true });
 
-        //Generate unique filename
-        //const filename = `${Date.now()}.jpg`;
+        await browser.close();
+		
+		// Upload image to DigitalOcean Space
+        const spaceEndpoint = 'https://sgp1.digitaloceanspaces.com'; // Replace with your Space endpoint
+        const spaceKey = 'FEZNNG7PSK4BDKSB47GT'; // Replace with your Space key
+        const spaceSecret = 'Nhh3QLtinkOyTDHc4oExCabg0JY8fAMpNwWMEMbJ4eM'; // Replace with your Space secret
+        const spaceName = 'viding'; // Replace with your Space name
+        const spacePath = `invitation/${filename}`; // Replace with the desired path within the Space
 
-        //Create directory if doesn't exist
-        if(!fs.existsSync(savePath)){
-            fs.mkdirSync(savePath, {recursive: true});
+        const fileContent = fs.readFileSync(imagePath);
+        const signedRequest = await fetch(`${spaceEndpoint}/${spacePath}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'image/jpeg',
+                'Authorization': `AWS ${spaceKey}:${spaceSecret}`,
+            },
+            body: fileContent,
+        });
+
+        // Optionally, you can remove the local image after uploading
+        fs.unlinkSync(imagePath);
+
+        if (signedRequest.status !== 200) {
+            return res.status(signedRequest.status).json({ error: 'Failed to upload image to DigitalOcean Space' });
         }
 
-        //Capture screenshot and save as jpg
-        await page.screenshot({path: path.join(savePath, filename), type: 'jpeg', fullPage: true});
-        
-        await browser.close();
+        const spaceUrl = `https://${spaceName}.${spaceEndpoint}/${spacePath}`;
 
-        return res.json({success: true, filename: filename});
+        return res.json({ success: true, filename: filename, spaceUrl: spaceUrl });
+
+        //return res.json({success: true, filename: filename});
 
     } catch(error) {
         console.error('Error:', error);

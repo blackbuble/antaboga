@@ -1,26 +1,31 @@
-# Use Node.js 14 LTS as the base image
-FROM node:latest
+# Use the official Node.js image as base
+FROM node:slim
+
+# Set environment variables
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 
 # Install necessary dependencies including Chromium
-RUN apt-get update && apt-get install -y chromium
+RUN apt-get update && apt-get install gnupg wget -y && \
+wget --quiet --output-document=- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google-archive.gpg && \
+sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' && \
+apt-get update && \
+apt-get install google-chrome-stable -y --no-install-recommends && \
+rm -rf /var/lib/apt/lists/*
 
-# Set environment variables for Puppeteer
-ENV PUPPETEER_EXECUTABLE_PATH /usr/bin/chromium
-
-# Set working directory
+# Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json to the working directory
+# Copy package.json and package-lock.json to container
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install --production
+RUN npm install
 
-# Copy the rest of the application
-COPY . .
+# Copy the rest of the application code to the container
+COPY index.js ./
 
-# Expose port 3000
-EXPOSE 3000
+# Expose the port the app runs on
+EXPOSE 8080
 
 # Command to run the application
 CMD ["node", "index.js"]
